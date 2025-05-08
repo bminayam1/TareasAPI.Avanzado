@@ -14,7 +14,6 @@ namespace TareasAPI.Controllers
     {
         private readonly TareasContext _context;
         private readonly NotificacionesTarea _notificadora;
-        public object ObtenerTareaPorId { get; private set; }
 
         public TareasController(TareasContext context, NotificacionesTarea notificadora)
         {
