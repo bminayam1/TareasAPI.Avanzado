@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Reflection.Metadata.Ecma335;
 using TareasAPI.Data;
 using TareasAPI.Helpers;
 using TareasAPI.Models;
@@ -17,17 +18,17 @@ namespace TareasAPI.Controllers
 
         public TareasController(TareasContext context, NotificacionesTarea notificadora)
         {
-            {
-                _context = context;
-                _notificadora = notificadora;
-            }
+
+            _context = context;
+            _notificadora = notificadora;
+
         }
-        
+
         //POST: api/Tareas
         [HttpPost]
         public async Task<ActionResult<Tarea<string>>> CrearTarea(Tarea<string> nuevaTarea)
         {
-          
+
             ValidarTareaDelegate<string> validador = ValidacionesTarea.ValidarBasica;
 
             if (!validador(nuevaTarea))
@@ -44,12 +45,12 @@ namespace TareasAPI.Controllers
             {
                 if (!validar(nuevaTarea))
                 {
-                    return BadRequest("Una o más validaciones fallaron, favor revisar logitud del nombre, Descripcion y Estado.");
+                    return BadRequest("Una o más validaciones fallaron, favor revisar longitud del nombre, descripción y estado.");
                 }
             }
 
             bool tareaDuplicada = await _context.Tareas.AnyAsync(t => t.Nombre == nuevaTarea.Nombre);
-            
+
             if (tareaDuplicada)
             {
                 return BadRequest("Ya existe una tarea con el mismo nombre.");
@@ -59,15 +60,41 @@ namespace TareasAPI.Controllers
             await _context.SaveChangesAsync();
             _notificadora.NotificacionCreacion(nuevaTarea);
 
+            // Usando la clase CalculosTarea para obtener los días restantes
+
+            int diasRestantes = CalculosTareas.CalcularDiasRestantes(nuevaTarea);
+            
             // Retorna la tarea creada con su ID generado
-            return CreatedAtAction(nameof(GetTarea), new { id = nuevaTarea.Id }, nuevaTarea);
+            return CreatedAtAction(nameof(GetTarea), new { id = nuevaTarea.Id }, new
+            {
+                nuevaTarea.Id,
+                nuevaTarea.Nombre,
+                nuevaTarea.Descripcion,
+                nuevaTarea.Testado,
+                nuevaTarea.FechaVencimiento,
+                DiasRestantes = diasRestantes
+            });
         }
 
         //GET: api/Tareas
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Tarea<string>>>> GetTareas()
         {
-            return await _context.Tareas.ToListAsync();
+            var tareas = await _context.Tareas.ToListAsync();
+
+            var resultado = tareas.Select(t => new
+            {
+                t.Id,
+                t.Nombre,
+                t.Descripcion,
+                t.Testado,
+                t.FechaVencimiento,
+
+                // Usando la clase CalculosTarea para obtener los días restantes
+                DiasRestantes = CalculosTareas.CalcularDiasRestantes(t)
+            });
+
+            return Ok(resultado);
         }
 
         //GET: api/Tareas/{id}
@@ -80,26 +107,31 @@ namespace TareasAPI.Controllers
                 return NotFound("La tarea no existe.");
             }
 
-            return tarea;
+            // Usando la clase CalculosTarea para obtener los días restantes
+            int diasRestantes = CalculosTareas.CalcularDiasRestantes(tarea);
+
+            return Ok(new
+            {
+                tarea.Id,
+                tarea.Nombre,
+                DiasRestantes = diasRestantes
+            });
         }
 
         //GET: api/Tareas/{Filtrar}
         [HttpGet("Filtrar")]
         public async Task<ActionResult<IEnumerable<Tarea<string>>>> FiltrarTareas(
-
-            [FromQuery] string? nombre,
-            [FromQuery] string? estado,
-            [FromQuery] DateTime? fechaVencimiento)
+           [FromQuery] string? nombre,
+           [FromQuery] string? estado,
+           [FromQuery] DateTime? fechaVencimiento)
         {
-
             var validaciones = new List<ValidarFiltroDelegate>
-            {
-                ValidacionesFiltro.ValidarCriteriosMinimos,
-                ValidacionesFiltro.ValidarFechaVencimiento
-            };
+           {
+               ValidacionesFiltro.ValidarCriteriosMinimos,
+               ValidacionesFiltro.ValidarFechaVencimiento
+           };
 
-            //Ejecutar Validaciones 
-
+            // Ejecutar Validaciones  
             foreach (var validar in validaciones)
             {
                 if (!validar(nombre, estado, fechaVencimiento))
@@ -110,34 +142,43 @@ namespace TareasAPI.Controllers
 
             var query = _context.Tareas.AsQueryable();
 
-            //if (string.IsNullOrWhiteSpace(nombre) && string.IsNullOrWhiteSpace(estado) && !fechaVencimiento.HasValue)
-            //{
-            //    return BadRequest("Debe proporcionar al menos un criterio de filtro (nombre, estado o fecha de vencimiento).");
-            //}
-
+            // Filtrar por nombres  
             if (!string.IsNullOrEmpty(nombre))
             {
-
                 query = query.Where(t => t.Nombre.Contains(nombre));
             }
 
+            // Filtrar por estado
+            // Función anónima en combinación con LINQ
             if (!string.IsNullOrEmpty(estado))
             {
-
-                query = query.Where(t => t.Testado == estado);
+                query = query.Where(t => t.Testado.ToLower() == estado.ToLower());
             }
 
+            // Filtrar por fecha de vencimiento  
             if (fechaVencimiento.HasValue)
             {
-                if (fechaVencimiento.Value.Year <1900 || fechaVencimiento.Value.Year > 3000)
+                if (fechaVencimiento.Value.Year < 1900 || fechaVencimiento.Value.Year > 3000)
                 {
                     return BadRequest("La fecha de vencimiento proporcionada no es valida.");
                 }
-                
+
                 query = query.Where(t => t.FechaVencimiento.Date == fechaVencimiento.Value.Date);
             }
+            var tareasFiltradas = await query.ToListAsync();
 
-            var resultado = await query.ToListAsync();
+            var resultado = tareasFiltradas.Select(t => new
+            {
+                    t.Id,
+                    t.Nombre,
+                    t.Descripcion,
+                    t.Testado,
+                    t.FechaVencimiento,
+                    // Usando la clase CalculosTarea para obtener los días restantes  
+                    DiasRestantes = CalculosTareas.CalcularDiasRestantes(t)
+                })
+                .ToList();
+
             return Ok(resultado);
         }
 
@@ -146,7 +187,7 @@ namespace TareasAPI.Controllers
         public async Task<IActionResult> PutTarea(int id, Tarea<string> tarea)
         {
             //Validacion descripcion vacia
-            if (string.IsNullOrWhiteSpace(tarea.Descripcion)) 
+            if (string.IsNullOrWhiteSpace(tarea.Descripcion))
             {
                 return BadRequest("La descripcion no puede estar vacia.");
             }

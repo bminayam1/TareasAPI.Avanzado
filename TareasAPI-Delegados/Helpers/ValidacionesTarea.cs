@@ -2,6 +2,7 @@
 
 namespace TareasAPI.Helpers
 {
+    //Validar tareas con Delegados, adelante validamos la descripcion de la tarea, fecha de vencimiento y el estado.
     public delegate bool ValidarTareaDelegate<T>(Tarea<T> tarea);
 
     public static class ValidacionesTarea
