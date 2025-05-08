@@ -1,6 +1,0 @@
-@TareasAPI_HostAddress = http://localhost:5136
-
-GET {{TareasAPI_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
