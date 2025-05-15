@@ -4,7 +4,7 @@ namespace TareasAPI.Factories
 {
     public class TareaFactory: ITareaFactory
     {
-        public virtual Tarea<string> GetTarea(string nombre, string descripcion)
+        public virtual Tarea<string> CrearTarea(string nombre, string descripcion)
         {
             return new Tarea<string>
             {

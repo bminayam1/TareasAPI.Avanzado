@@ -33,8 +33,9 @@ namespace TareasAPI.Controllers
 
             if (!validador(nuevaTarea))
             {
-                return BadRequest("La descripcion de la tarea esta vacia.");
+                return BadRequest("La descripcion de la tarea esta vacia o fecha de vencimiento es invalida.");
             }
+            
             var validaciones = new List<ValidarTareaDelegate<string>>
             {
                 ValidacionesTarea.ValidarLongitudNombre,
@@ -64,6 +65,14 @@ namespace TareasAPI.Controllers
 
             int diasRestantes = CalculosTareas.CalcularDiasRestantes(nuevaTarea);
 
+            string nivelUrgencia;
+            if (diasRestantes <= 2)
+                nivelUrgencia = "Alta";
+            else if (diasRestantes <= 5)
+                nivelUrgencia = "Media";
+            else
+                nivelUrgencia = "Baja";
+
             // Retorna la tarea creada con su ID generado
             return CreatedAtAction(nameof(GetTarea), new { id = nuevaTarea.Id }, new
             {
@@ -72,7 +81,9 @@ namespace TareasAPI.Controllers
                 nuevaTarea.Descripcion,
                 nuevaTarea.Testado,
                 nuevaTarea.FechaVencimiento,
-                DiasRestantes = diasRestantes
+                DiasRestantes = diasRestantes,
+                NivelUrgencia = nivelUrgencia
+
             });
         }
         

@@ -4,6 +4,6 @@ namespace TareasAPI.Factories
 {
     public interface ITareaFactory
     {
-        Tarea<string> GetTarea(string nombre, string descripcion);
+        Tarea<string> CrearTarea(string nombre, string descripcion);
     }
 }

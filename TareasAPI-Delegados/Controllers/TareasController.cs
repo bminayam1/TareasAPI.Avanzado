@@ -28,18 +28,18 @@ namespace TareasAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Tarea<string>>> CrearTarea(Tarea<string> nuevaTarea)
         {
-
             ValidarTareaDelegate<string> validador = ValidacionesTarea.ValidarBasica;
 
             if (!validador(nuevaTarea))
             {
                 return BadRequest("La descripcion de la tarea esta vacia.");
             }
+
             var validaciones = new List<ValidarTareaDelegate<string>>
-            {
-                ValidacionesTarea.ValidarLongitudNombre,
-                ValidacionesTarea.ValidarEstado
-            };
+    {
+        ValidacionesTarea.ValidarLongitudNombre,
+        ValidacionesTarea.ValidarEstado
+    };
 
             foreach (var validar in validaciones)
             {
@@ -50,21 +50,27 @@ namespace TareasAPI.Controllers
             }
 
             bool tareaDuplicada = await _context.Tareas.AnyAsync(t => t.Nombre == nuevaTarea.Nombre);
-
             if (tareaDuplicada)
             {
                 return BadRequest("Ya existe una tarea con el mismo nombre.");
             }
 
+            // Guardar la tarea
             _context.Tareas.Add(nuevaTarea);
             await _context.SaveChangesAsync();
+
+            // Notificar
             _notificadora.NotificacionCreacion(nuevaTarea);
 
-            // Usando la clase CalculosTarea para obtener los días restantes
-
+            // Calcular días restantes
             int diasRestantes = CalculosTareas.CalcularDiasRestantes(nuevaTarea);
 
-            // Retorna la tarea creada con su ID generado
+            // Nivel de urgencia
+            string nivelUrgencia = diasRestantes <= 2 ? "Alta" :
+                                   diasRestantes <= 5 ? "Media" :
+                                   "Baja";
+
+            // Devolver con datos adicionales
             return CreatedAtAction(nameof(GetTarea), new { id = nuevaTarea.Id }, new
             {
                 nuevaTarea.Id,
@@ -72,10 +78,11 @@ namespace TareasAPI.Controllers
                 nuevaTarea.Descripcion,
                 nuevaTarea.Testado,
                 nuevaTarea.FechaVencimiento,
-                DiasRestantes = diasRestantes
+                DiasRestantes = diasRestantes,
+                NivelUrgencia = nivelUrgencia
             });
         }
-        
+
         //GET: api/Tareas
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Tarea<string>>>> GetTareas()
