@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Reflection.Metadata.Ecma335;
 using TareasAPI.Data;
+using TareasAPI.Factories;
 using TareasAPI.Helpers;
 using TareasAPI.Models;
 using TareasAPI.Services;
@@ -63,7 +64,7 @@ namespace TareasAPI.Controllers
             // Usando la clase CalculosTarea para obtener los días restantes
 
             int diasRestantes = CalculosTareas.CalcularDiasRestantes(nuevaTarea);
-            
+
             // Retorna la tarea creada con su ID generado
             return CreatedAtAction(nameof(GetTarea), new { id = nuevaTarea.Id }, new
             {
@@ -75,27 +76,40 @@ namespace TareasAPI.Controllers
                 DiasRestantes = diasRestantes
             });
         }
-
+        
         //GET: api/Tareas
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Tarea<string>>>> GetTareas()
         {
             var tareas = await _context.Tareas.ToListAsync();
 
-            var resultado = tareas.Select(t => new
+            var resultado = tareas.Select(t =>
             {
-                t.Id,
-                t.Nombre,
-                t.Descripcion,
-                t.Testado,
-                t.FechaVencimiento,
+                int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
 
-                // Usando la clase CalculosTarea para obtener los días restantes
-                DiasRestantes = CalculosTareas.CalcularDiasRestantes(t)
+                string nivelUrgencia;
+                if (diasRestantes <= 2)
+                    nivelUrgencia = "Alta";
+                else if (diasRestantes <= 5)
+                    nivelUrgencia = "Media";
+                else
+                    nivelUrgencia = "Baja";
+
+                return new
+                {
+                    t.Id,
+                    t.Nombre,
+                    t.Descripcion,
+                    t.Testado,
+                    t.FechaVencimiento,
+                    DiasRestantes = diasRestantes,
+                    NivelUrgencia = nivelUrgencia
+                };
             });
 
             return Ok(resultado);
         }
+
 
         //GET: api/Tareas/{id}
         [HttpGet("{id}")]
@@ -118,7 +132,8 @@ namespace TareasAPI.Controllers
             });
         }
 
-        //GET: api/Tareas/{Filtrar}
+
+        //GET: api/Tareas/Filtrar
         [HttpGet("Filtrar")]
         public async Task<ActionResult<IEnumerable<Tarea<string>>>> FiltrarTareas(
            [FromQuery] string? nombre,
@@ -126,10 +141,10 @@ namespace TareasAPI.Controllers
            [FromQuery] DateTime? fechaVencimiento)
         {
             var validaciones = new List<ValidarFiltroDelegate>
-           {
-               ValidacionesFiltro.ValidarCriteriosMinimos,
-               ValidacionesFiltro.ValidarFechaVencimiento
-           };
+            {
+                 ValidacionesFiltro.ValidarCriteriosMinimos,
+                 ValidacionesFiltro.ValidarFechaVencimiento
+            };
 
             // Ejecutar Validaciones  
             foreach (var validar in validaciones)
@@ -149,7 +164,6 @@ namespace TareasAPI.Controllers
             }
 
             // Filtrar por estado
-            // Función anónima en combinación con LINQ
             if (!string.IsNullOrEmpty(estado))
             {
                 query = query.Where(t => t.Testado.ToLower() == estado.ToLower());
@@ -165,22 +179,36 @@ namespace TareasAPI.Controllers
 
                 query = query.Where(t => t.FechaVencimiento.Date == fechaVencimiento.Value.Date);
             }
+
             var tareasFiltradas = await query.ToListAsync();
 
-            var resultado = tareasFiltradas.Select(t => new
+            var resultado = tareasFiltradas.Select(t =>
             {
+                int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
+
+                string nivelUrgencia;
+                if (diasRestantes <= 2)
+                    nivelUrgencia = "Alta";
+                else if (diasRestantes <= 5)
+                    nivelUrgencia = "Media";
+                else
+                    nivelUrgencia = "Baja";
+
+                return new
+                {
                     t.Id,
                     t.Nombre,
                     t.Descripcion,
                     t.Testado,
                     t.FechaVencimiento,
-                    // Usando la clase CalculosTarea para obtener los días restantes  
-                    DiasRestantes = CalculosTareas.CalcularDiasRestantes(t)
-                })
-                .ToList();
+                    DiasRestantes = diasRestantes,
+                    NivelUrgencia = nivelUrgencia
+                };
+            }).ToList();
 
             return Ok(resultado);
         }
+
 
         //PUT: api/Tareas/{id}
         [HttpPut("{id}")]
