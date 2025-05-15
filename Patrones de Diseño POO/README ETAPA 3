@@ -1,0 +1,3 @@
+A continuacion podran verlos los cambios realizados, segun lo solicitado. 
+
+Se agrego una nueva carpeta llamada: Factories donde se agregaron 3 nuevas clases para cunplir con los patrones de diseño en POO. Las mismas podran alertar segun los niveles de prioridad y la urgencia. 
