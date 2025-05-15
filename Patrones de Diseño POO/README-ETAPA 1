@@ -1,3 +1,0 @@
-Esta API tiene como propósito obtener, agregar, actualizar, filtrar y eliminar información relacionada con tareas. Funciona a través de una Web API tradicional que se conecta a SQL Server.
-Para acceder a ella mediante Swagger, utiliza el siguiente enlace:
-https://localhost:7099/swagger/index.html
