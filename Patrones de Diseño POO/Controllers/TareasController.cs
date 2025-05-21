@@ -15,6 +15,7 @@ namespace TareasAPI.Controllers
     {
         private readonly TareasContext _context;
         private readonly NotificacionesTarea _notificadora;
+        private static readonly ColaDeTareas<Tarea<string>> _colaDeTareas = new ColaDeTareas<Tarea<string>>();
 
         public TareasController(TareasContext context, NotificacionesTarea notificadora)
         {
@@ -60,6 +61,8 @@ namespace TareasAPI.Controllers
             _context.Tareas.Add(nuevaTarea);
             await _context.SaveChangesAsync();
             _notificadora.NotificacionCreacion(nuevaTarea);
+
+            _colaDeTareas.AgregarTarea(nuevaTarea); // Agregar la tarea a la cola para su procesamiento
 
             // Usando la clase CalculosTarea para obtener los días restantes
 
