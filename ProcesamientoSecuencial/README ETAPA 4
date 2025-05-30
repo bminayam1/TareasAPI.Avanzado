@@ -1,0 +1,6 @@
+Desarrollo de la Etapa 4: Programación Reactiva con Rx.NET
+
+Con el objetivo de lograr una manera secuencial de procesar las tareas, se agrego en esta actulizacion de TareasAPI la programacion reactiva. 
+Con el fin de que una tarea se procesen de forma secuencial y se complete una antes de que inicie la siguiente, implementamos una cola de tareas utilizando una lista o cola simple para gestioanr el
+orden de ejecucion. La misma fue agregada en la carpeta Services mediante una clase llamada ColaDeTareas. 
+
