@@ -36,7 +36,7 @@ namespace TareasAPI.Controllers
             {
                 return BadRequest("La descripcion de la tarea esta vacia o fecha de vencimiento es invalida.");
             }
-            
+
             var validaciones = new List<ValidarTareaDelegate<string>>
             {
                 ValidacionesTarea.ValidarLongitudNombre,
@@ -89,38 +89,35 @@ namespace TareasAPI.Controllers
 
             });
         }
-        
+
         //GET: api/Tareas
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Tarea<string>>>> GetTareas()
+        public async Task<ActionResult<IEnumerable<object>>> GetTareas()
         {
-            var tareas = await _context.Tareas.ToListAsync();
-
-            var resultado = tareas.Select(t =>
+            return await Memoization.GetOrAddAsync("GetTareasCache", async () =>
             {
-                int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
+                var tareas = await _context.Tareas.ToListAsync();
 
-                string nivelUrgencia;
-                if (diasRestantes <= 2)
-                    nivelUrgencia = "Alta";
-                else if (diasRestantes <= 5)
-                    nivelUrgencia = "Media";
-                else
-                    nivelUrgencia = "Baja";
-
-                return new
+                var resultado = tareas.Select(t =>
                 {
-                    t.Id,
-                    t.Nombre,
-                    t.Descripcion,
-                    t.Testado,
-                    t.FechaVencimiento,
-                    DiasRestantes = diasRestantes,
-                    NivelUrgencia = nivelUrgencia
-                };
-            });
+                    int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
+                    string nivelUrgencia = diasRestantes <= 2 ? "Alta" :
+                                           diasRestantes <= 5 ? "Media" : "Baja";
 
-            return Ok(resultado);
+                    return new
+                    {
+                        t.Id,
+                        t.Nombre,
+                        t.Descripcion,
+                        t.Testado,
+                        t.FechaVencimiento,
+                        DiasRestantes = diasRestantes,
+                        NivelUrgencia = nivelUrgencia
+                    };
+                }).ToList();
+
+                return Ok(resultado);
+            }, TimeSpan.FromMinutes(30)); // Guarda en caché los resultados por 30 minutos
         }
 
 
@@ -148,78 +145,39 @@ namespace TareasAPI.Controllers
 
         //GET: api/Tareas/Filtrar
         [HttpGet("Filtrar")]
-        public async Task<ActionResult<IEnumerable<Tarea<string>>>> FiltrarTareas(
-           [FromQuery] string? nombre,
-           [FromQuery] string? estado,
-           [FromQuery] DateTime? fechaVencimiento)
+        public async Task<ActionResult<IEnumerable<object>>> FiltrarTareas(
+        [FromQuery] string? nombre, [FromQuery] string? estado, [FromQuery] DateTime? fechaVencimiento)
         {
-            var validaciones = new List<ValidarFiltroDelegate>
-            {
-                 ValidacionesFiltro.ValidarCriteriosMinimos,
-                 ValidacionesFiltro.ValidarFechaVencimiento
-            };
+            string cacheKey = $"Filtro_{nombre}_{estado}_{fechaVencimiento?.ToString("yyyyMMdd") ?? "null"}";
 
-            // Ejecutar Validaciones  
-            foreach (var validar in validaciones)
+            return await Memoization.GetOrAddAsync(cacheKey, async () =>
             {
-                if (!validar(nombre, estado, fechaVencimiento))
+                var query = _context.Tareas.AsQueryable();
+                if (!string.IsNullOrEmpty(nombre)) query = query.Where(t => t.Nombre.Contains(nombre));
+                if (!string.IsNullOrEmpty(estado)) query = query.Where(t => t.Testado.ToLower() == estado.ToLower());
+                if (fechaVencimiento.HasValue) query = query.Where(t => t.FechaVencimiento.Date == fechaVencimiento.Value.Date);
+
+                var tareasFiltradas = await query.ToListAsync();
+
+                var resultado = tareasFiltradas.Select(t =>
                 {
-                    return BadRequest("Debe de proporcionar al menos un criterio");
-                }
-            }
+                    int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
+                    string nivelUrgencia = diasRestantes <= 2 ? "Alta" : diasRestantes <= 5 ? "Media" : "Baja";
 
-            var query = _context.Tareas.AsQueryable();
+                    return new
+                    {
+                        t.Id,
+                        t.Nombre,
+                        t.Descripcion,
+                        t.Testado,
+                        t.FechaVencimiento,
+                        DiasRestantes = diasRestantes,
+                        NivelUrgencia = nivelUrgencia
+                    };
+                }).ToList();
 
-            // Filtrar por nombres  
-            if (!string.IsNullOrEmpty(nombre))
-            {
-                query = query.Where(t => t.Nombre.Contains(nombre));
-            }
-
-            // Filtrar por estado
-            if (!string.IsNullOrEmpty(estado))
-            {
-                query = query.Where(t => t.Testado.ToLower() == estado.ToLower());
-            }
-
-            // Filtrar por fecha de vencimiento  
-            if (fechaVencimiento.HasValue)
-            {
-                if (fechaVencimiento.Value.Year < 1900 || fechaVencimiento.Value.Year > 3000)
-                {
-                    return BadRequest("La fecha de vencimiento proporcionada no es valida.");
-                }
-
-                query = query.Where(t => t.FechaVencimiento.Date == fechaVencimiento.Value.Date);
-            }
-
-            var tareasFiltradas = await query.ToListAsync();
-
-            var resultado = tareasFiltradas.Select(t =>
-            {
-                int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
-
-                string nivelUrgencia;
-                if (diasRestantes <= 2)
-                    nivelUrgencia = "Alta";
-                else if (diasRestantes <= 5)
-                    nivelUrgencia = "Media";
-                else
-                    nivelUrgencia = "Baja";
-
-                return new
-                {
-                    t.Id,
-                    t.Nombre,
-                    t.Descripcion,
-                    t.Testado,
-                    t.FechaVencimiento,
-                    DiasRestantes = diasRestantes,
-                    NivelUrgencia = nivelUrgencia
-                };
-            }).ToList();
-
-            return Ok(resultado);
+                return Ok(resultado);
+            }, TimeSpan.FromMinutes(30));
         }
 
 

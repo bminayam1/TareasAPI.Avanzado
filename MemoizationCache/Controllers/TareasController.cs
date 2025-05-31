@@ -36,7 +36,7 @@ namespace TareasAPI.Controllers
             {
                 return BadRequest("La descripcion de la tarea esta vacia o fecha de vencimiento es invalida.");
             }
-
+            
             var validaciones = new List<ValidarTareaDelegate<string>>
             {
                 ValidacionesTarea.ValidarLongitudNombre,
@@ -64,7 +64,7 @@ namespace TareasAPI.Controllers
 
             _colaDeTareas.AgregarTarea(nuevaTarea); // Agregar la tarea a la cola para su procesamiento
 
-            // Clase CalculosTarea para obtener los días restantes
+            // Usando la clase CalculosTarea para obtener los días restantes
 
             int diasRestantes = CalculosTareas.CalcularDiasRestantes(nuevaTarea);
 
@@ -75,8 +75,6 @@ namespace TareasAPI.Controllers
                 nivelUrgencia = "Media";
             else
                 nivelUrgencia = "Baja";
-
-            Memoization.ClearCache(); // Limpiar la caché antes de crear una nueva tarea
 
             // Retorna la tarea creada con su ID generado
             return CreatedAtAction(nameof(GetTarea), new { id = nuevaTarea.Id }, new
@@ -91,61 +89,39 @@ namespace TareasAPI.Controllers
 
             });
         }
-
-        // GET: api/Tareas
-        // GET: api/Tareas
+        
+        //GET: api/Tareas
         [HttpGet]
-        public async Task<ActionResult<object>> GetTareas()
+        public async Task<ActionResult<IEnumerable<Tarea<string>>>> GetTareas()
         {
-            var resultadoCacheado = Memoization.GetOrAdd("GetTareasConUrgencia", () =>
+            var tareas = await _context.Tareas.ToListAsync();
+
+            var resultado = tareas.Select(t =>
             {
-                // Aquí asumo que _context.Tareas tiene el tipo Tarea<TEstado>
-                // Por simplicidad, en el ejemplo uso string como TEstado.
-                var tareas = _context.Tareas.OfType<Tarea<string>>().ToList();
+                int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
 
-                var listaTareas = tareas.Select(t =>
-                {
-                    int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
-
-                    string nivelUrgencia;
-                    if (diasRestantes <= 2)
-                        nivelUrgencia = "Alta";
-                    else if (diasRestantes <= 5)
-                        nivelUrgencia = "Media";
-                    else
-                        nivelUrgencia = "Baja";
-
-                    return new
-                    {
-                        t.Id,
-                        t.Nombre,
-                        t.Descripcion,
-                        t.Testado,
-                        t.FechaVencimiento,
-                        DiasRestantes = diasRestantes,
-                        NivelUrgencia = nivelUrgencia
-                    };
-                }).ToList();
-
-                // Instanciamos servicio genérico con el tipo de estado adecuado
-                var servicio = new TareaService<string>();
-
-                // Aquí debes pasar el valor que representa estado completado
-                string estadoCompletado = "Completado";
-
-                double porcentajeCompletadas = servicio.CalcularPorcentajeCompletadas(tareas, estadoCompletado);
+                string nivelUrgencia;
+                if (diasRestantes <= 2)
+                    nivelUrgencia = "Alta";
+                else if (diasRestantes <= 5)
+                    nivelUrgencia = "Media";
+                else
+                    nivelUrgencia = "Baja";
 
                 return new
                 {
-                    Tareas = listaTareas,
-                    PorcentajeCompletadas = porcentajeCompletadas
+                    t.Id,
+                    t.Nombre,
+                    t.Descripcion,
+                    t.Testado,
+                    t.FechaVencimiento,
+                    DiasRestantes = diasRestantes,
+                    NivelUrgencia = nivelUrgencia
                 };
             });
 
-            return Ok(resultadoCacheado);
+            return Ok(resultado);
         }
-
-
 
 
         //GET: api/Tareas/{id}
@@ -172,17 +148,18 @@ namespace TareasAPI.Controllers
 
         //GET: api/Tareas/Filtrar
         [HttpGet("Filtrar")]
-        public async Task<ActionResult<IEnumerable<object>>> FiltrarTareas(
+        public async Task<ActionResult<IEnumerable<Tarea<string>>>> FiltrarTareas(
            [FromQuery] string? nombre,
            [FromQuery] string? estado,
            [FromQuery] DateTime? fechaVencimiento)
-            {
+        {
             var validaciones = new List<ValidarFiltroDelegate>
             {
-         ValidacionesFiltro.ValidarCriteriosMinimos,
-         ValidacionesFiltro.ValidarFechaVencimiento
-    };
+                 ValidacionesFiltro.ValidarCriteriosMinimos,
+                 ValidacionesFiltro.ValidarFechaVencimiento
+            };
 
+            // Ejecutar Validaciones  
             foreach (var validar in validaciones)
             {
                 if (!validar(nombre, estado, fechaVencimiento))
@@ -191,56 +168,58 @@ namespace TareasAPI.Controllers
                 }
             }
 
-            // Crear una clave única para caché basada en los parámetros
-            string cacheKey = $"Filtro_{nombre}_{estado}_{fechaVencimiento?.ToString("yyyyMMdd") ?? "null"}";
+            var query = _context.Tareas.AsQueryable();
 
-            return await Memoization.GetOrAdd(cacheKey, async () =>
+            // Filtrar por nombres  
+            if (!string.IsNullOrEmpty(nombre))
             {
-                var query = _context.Tareas.AsQueryable();
+                query = query.Where(t => t.Nombre.Contains(nombre));
+            }
 
-                if (!string.IsNullOrEmpty(nombre))
+            // Filtrar por estado
+            if (!string.IsNullOrEmpty(estado))
+            {
+                query = query.Where(t => t.Testado.ToLower() == estado.ToLower());
+            }
+
+            // Filtrar por fecha de vencimiento  
+            if (fechaVencimiento.HasValue)
+            {
+                if (fechaVencimiento.Value.Year < 1900 || fechaVencimiento.Value.Year > 3000)
                 {
-                    query = query.Where(t => t.Nombre.Contains(nombre));
+                    return BadRequest("La fecha de vencimiento proporcionada no es valida.");
                 }
 
-                if (!string.IsNullOrEmpty(estado))
+                query = query.Where(t => t.FechaVencimiento.Date == fechaVencimiento.Value.Date);
+            }
+
+            var tareasFiltradas = await query.ToListAsync();
+
+            var resultado = tareasFiltradas.Select(t =>
+            {
+                int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
+
+                string nivelUrgencia;
+                if (diasRestantes <= 2)
+                    nivelUrgencia = "Alta";
+                else if (diasRestantes <= 5)
+                    nivelUrgencia = "Media";
+                else
+                    nivelUrgencia = "Baja";
+
+                return new
                 {
-                    query = query.Where(t => t.Testado.ToLower() == estado.ToLower());
-                }
+                    t.Id,
+                    t.Nombre,
+                    t.Descripcion,
+                    t.Testado,
+                    t.FechaVencimiento,
+                    DiasRestantes = diasRestantes,
+                    NivelUrgencia = nivelUrgencia
+                };
+            }).ToList();
 
-                if (fechaVencimiento.HasValue)
-                {
-                    query = query.Where(t => t.FechaVencimiento.Date == fechaVencimiento.Value.Date);
-                }
-
-                var tareasFiltradas = await query.ToListAsync();
-
-                var resultado = tareasFiltradas.Select(t =>
-                {
-                    int diasRestantes = CalculosTareas.CalcularDiasRestantes(t);
-
-                    string nivelUrgencia;
-                    if (diasRestantes <= 2)
-                        nivelUrgencia = "Alta";
-                    else if (diasRestantes <= 5)
-                        nivelUrgencia = "Media";
-                    else
-                        nivelUrgencia = "Baja";
-
-                    return new
-                    {
-                        t.Id,
-                        t.Nombre,
-                        t.Descripcion,
-                        t.Testado,
-                        t.FechaVencimiento,
-                        DiasRestantes = diasRestantes,
-                        NivelUrgencia = nivelUrgencia
-                    };
-                }).ToList();
-
-                return Ok(resultado);
-            });
+            return Ok(resultado);
         }
 
 
@@ -256,12 +235,11 @@ namespace TareasAPI.Controllers
 
             if (id != tarea.Id)
             {
-                return BadRequest("El Id no existe en la base de datos");
+                return BadRequest();
             }
 
             _context.Entry(tarea).State = EntityState.Modified;
             await _context.SaveChangesAsync();
-            Memoization.ClearCache();
 
             return NoContent();
         }
@@ -280,8 +258,6 @@ namespace TareasAPI.Controllers
             _context.Tareas.Remove(tarea);
             await _context.SaveChangesAsync();
             _notificadora.NotificacionEliminacion(tarea);
-
-            Memoization.ClearCache(); //Limpiar memoria cache porque los datos cambiaron 
 
             return NoContent();
         }
