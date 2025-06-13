@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
+using Newtonsoft.Json;
 
 namespace TareasAPI.Controllers
 {
@@ -39,6 +40,8 @@ namespace TareasAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Tarea<string>>> CrearTarea(Tarea<string> nuevaTarea)
         {
+            Console.WriteLine(JsonConvert.SerializeObject(nuevaTarea));
+
             // Validaciones básicas
             ValidarTareaDelegate<string> validador = ValidacionesTarea.ValidarBasica;
             if (!validador(nuevaTarea))
