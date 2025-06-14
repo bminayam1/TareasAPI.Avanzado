@@ -1,0 +1,1 @@
+En esta nueva fase del proyecto **TareasAPI**, se ha incorporado **SignalR** para habilitar **comunicación en tiempo real** entre el servidor y los clientes. Esta integración permite, por ejemplo, notificar a todos los usuarios conectados cuando se crea, actualiza o elimina una tarea.
