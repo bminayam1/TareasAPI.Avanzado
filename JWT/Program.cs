@@ -17,19 +17,16 @@ builder.Services.AddDbContext<TareasContext>(options =>
 builder.Services.AddControllers();
 
 // Registrar servicio JWT y notificaciones
-builder.Services.AddSingleton<NotificacionesTarea>();
 builder.Services.AddScoped<NotificacionesTarea>();
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddSignalR();
 
 // Configurar autenticación JWT
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
 {
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -39,6 +36,17 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:ClaveSecreta"]))
+
+    };
+
+    // Manejo de errores en autenticación JWT
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            Console.WriteLine($"Error de autenticación JWT: {context.Exception.Message}");
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -88,7 +96,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Aquí agregas la ruta para el Hub SignalR
+// Ruta para el Hub SignalR
 app.MapHub<TareasHubs>("/tareasHubs");
 
 app.Run();
