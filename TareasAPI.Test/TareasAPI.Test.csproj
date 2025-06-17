@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Publicacion IIS Tareas WebAPI\TareasAPI.csproj" />
     <ProjectReference Include="..\xUnit\TareasAPI.csproj" />
   </ItemGroup>
 
