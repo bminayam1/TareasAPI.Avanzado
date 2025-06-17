@@ -34,14 +34,7 @@ namespace TareasAPI.Controllers
             _hubContext = hubContext;
         }
 
-        [HttpGet("ping")]
-        public IActionResult Ping()
-        {
-            return Ok("pong");
-        }
-
-        // POST: api/Tareas
-        //[Authorize]
+       
         [HttpPost]
         public async Task<ActionResult<Tarea<string>>> CrearTarea(Tarea<string> nuevaTarea)
         {
